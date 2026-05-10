@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>네이버 블로그 글 작성기</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <header class="app-header">
+    <span class="header-logo">✍️</span>
+    <h1>네이버 블로그 글 작성기</h1>
+  </header>
+
+  <!-- Body: two-column layout -->
+  <div class="app-body">
+
+    <!-- ========== LEFT: INPUT PANEL ========== -->
+    <aside class="input-panel">
+
+      <!-- 1. Image Upload -->
+      <section class="card">
+        <h2 class="card-title">📸 이미지 업로드</h2>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" multiple accept="image/*" hidden />
+          <div class="upload-zone-inner">
+            <div class="upload-icon">🖼️</div>
+            <p class="upload-text">클릭하거나 이미지를 여기에 드래그</p>
+            <p class="upload-sub">JPG, PNG, GIF, WEBP · 여러 장 가능</p>
+          </div>
+        </div>
+        <div class="image-grid" id="imageGrid"></div>
+      </section>
+
+      <!-- 2. Blog Style Reference -->
+      <section class="card">
+        <h2 class="card-title">🔗 내 블로그 스타일 참고 <span class="optional-badge">선택</span></h2>
+        <p class="card-desc">최근 블로그 글 10개의 말투를 분석해서 비슷한 스타일로 작성합니다.</p>
+        <div class="blog-id-row">
+          <input
+            type="text"
+            id="blogIdInput"
+            class="text-input"
+            placeholder="네이버 블로그 ID (예: myblog123)"
+          />
+          <button class="btn-verify" id="verifyBtn">확인</button>
+        </div>
+        <p class="url-hint">blog.naver.com/<strong id="blogIdPreview">ID</strong></p>
+        <div id="blogStatus" class="blog-status" style="display:none"></div>
+      </section>
+
+      <!-- 3. Content Guide -->
+      <section class="card">
+        <h2 class="card-title">📋 작성 가이드 <span class="optional-badge">선택</span></h2>
+        <p class="card-desc">포함해야 할 내용, 분위기, 특이사항을 자유롭게 적어주세요.</p>
+        <textarea
+          id="guideInput"
+          class="guide-textarea"
+          rows="5"
+          placeholder="예) 오늘 방문한 카페 후기를 써줘. 커피 맛, 인테리어, 분위기, 가격대를 언급하고 재방문 의사도 표현해줘. 전체적으로 따뜻하고 긍정적인 톤으로 써줘."
+        ></textarea>
+      </section>
+
+      <!-- 4. Keywords -->
+      <section class="card">
+        <h2 class="card-title">🔑 필수 키워드 설정 <span class="optional-badge">선택</span></h2>
+        <p class="card-desc">반드시 몇 번 이상 포함되어야 하는 키워드를 설정하세요.</p>
+        <div id="keywordList"></div>
+        <button class="btn-add-keyword" id="addKeywordBtn">+ 키워드 추가</button>
+      </section>
+
+      <!-- 5. Title Keywords -->
+      <section class="card">
+        <h2 class="card-title">🏷️ 제목 필수 키워드 <span class="optional-badge">선택</span></h2>
+        <p class="card-desc">추천 제목 3개에 반드시 포함될 키워드를 입력하세요. 쉼표로 구분.</p>
+        <input
+          type="text"
+          id="titleKeywordsInput"
+          class="text-input"
+          placeholder="예: 강남, 카페, 분위기 맛집"
+        />
+      </section>
+
+      <!-- Coupang Partners -->
+      <section class="card">
+        <div class="coupang-header">
+          <h2 class="card-title" style="margin:0">🛒 쿠팡 파트너스 링크 삽입 <span class="optional-badge">선택</span></h2>
+          <label class="toggle-switch">
+            <input type="checkbox" id="coupangToggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="coupangOptions" style="display:none; margin-top:12px">
+          <p class="card-desc" style="margin-bottom:10px">이미지 내용과 관련된 쿠팡 상품을 자동으로 검색해서 글 중간에 삽입합니다.</p>
+          <div class="min-char-row">
+            <span class="kw-unit" style="color:#555">상품 개수</span>
+            <input type="number" id="coupangCount" class="text-input" min="1" max="5" value="2" style="width:70px" />
+            <span class="kw-unit">개</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Min char count -->
+      <section class="card">
+        <h2 class="card-title">📏 최소 글자수 설정 <span class="optional-badge">선택</span></h2>
+        <p class="card-desc">공백 제외 기준으로 최소 몇 자 이상 작성할지 설정하세요.</p>
+        <div class="min-char-row">
+          <input type="number" id="minCharInput" class="text-input" min="300" max="10000" step="100" placeholder="예: 2000" />
+          <span class="kw-unit">자 이상</span>
+        </div>
+      </section>
+
+      <!-- Generate -->
+      <button class="btn-generate" id="generateBtn">
+        ✨ 블로그 글 생성하기
+      </button>
+
+    </aside>
+
+    <!-- ========== RIGHT: RESULT PANEL ========== -->
+    <main class="result-panel" id="resultPanel">
+
+      <!-- Empty state -->
+      <div class="panel-state" id="stateEmpty">
+        <div class="empty-icon">📝</div>
+        <p class="empty-title">이미지를 올리고 글을 생성해보세요</p>
+        <p class="empty-sub">이미지 분석 → 스타일 참고 → 블로그 글 자동 작성</p>
+      </div>
+
+      <!-- Loading state -->
+      <div class="panel-state" id="stateLoading" style="display:none">
+        <div class="spinner"></div>
+        <p class="loading-title">블로그 글 생성 중...</p>
+        <p class="loading-sub">이미지 분석 및 글 작성에 잠시 시간이 걸립니다</p>
+      </div>
+
+      <!-- Error state -->
+      <div class="panel-state" id="stateError" style="display:none">
+        <div class="error-icon">⚠️</div>
+        <div class="error-box">
+          <p id="errorMessage"></p>
+        </div>
+      </div>
+
+      <!-- Result state -->
+      <div id="stateResult" style="display:none">
+
+        <!-- Style fetch warning -->
+        <div id="styleWarning" class="style-warning" style="display:none"></div>
+
+        <!-- Keyword check -->
+        <div id="keywordCheckArea" style="display:none">
+          <div class="kw-check-header">키워드 포함 확인</div>
+          <div class="kw-badges" id="kwBadges"></div>
+        </div>
+
+        <!-- 이미지 분석 결과 -->
+        <div id="imageAnalysisArea" style="display:none">
+          <div class="analysis-header" onclick="toggleAnalysis()">
+            <span class="section-label" style="margin:0">🔍 이미지 분석 결과</span>
+            <span class="analysis-toggle-icon" id="analysisIcon">▼ 펼치기</span>
+          </div>
+          <div class="analysis-content" id="analysisContent" style="display:none"></div>
+        </div>
+
+        <!-- SEO 제목 추천 -->
+        <div id="titleArea" style="display:none">
+          <div class="section-label">🔍 SEO 제목 추천 (클릭하여 복사)</div>
+          <div class="title-list" id="titleList"></div>
+        </div>
+
+        <!-- Result header -->
+        <div class="result-header">
+          <h2 class="result-title">생성된 블로그 글 <span class="char-count" id="charCount"></span></h2>
+          <div class="result-actions">
+            <button class="btn-action" id="copyBtn">📋 복사</button>
+            <button class="btn-action btn-action-outline" id="regenerateBtn">🔄 다시 생성</button>
+          </div>
+        </div>
+
+        <!-- Post content -->
+        <div class="post-card" id="postDisplay"></div>
+
+      </div>
+
+    </main>
+
+  </div>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

@@ -91,6 +91,64 @@ def fetch_naver_blog_posts(blog_id, count=10):
         return [], f"블로그 글 가져오기 실패: {str(e)}"
 
 
+def search_naver_blog_posts(query, count=5):
+    """키워드 기반 네이버 블로그 검색 결과에서 제목과 요약을 추출합니다."""
+    if not query:
+        return [], None
+
+    try:
+        from urllib.parse import quote_plus
+        search_url = (
+            "https://search.naver.com/search.naver?where=post&sm=tab_opt&nso=so:r,p:all,a:all&"
+            f"query={quote_plus(query)}"
+        )
+        headers = {
+            'User-Agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            )
+        }
+        response = requests.get(search_url, headers=headers, timeout=12)
+        response.raise_for_status()
+        html = response.text
+
+        title_matches = re.findall(
+            r'<a[^>]+class="[^"]*(?:api_txt_lines total_tit|sh_blog_title)[^"]*"[^>]*title="([^"]+)"',
+            html
+        )
+        if len(title_matches) < count:
+            title_matches += re.findall(
+                r'<a[^>]+class="[^"]*(?:api_txt_lines total_tit|sh_blog_title)[^"]*"[^>]*>([^<]+)</a>',
+                html
+            )
+
+        snippet_matches = re.findall(
+            r'<div[^>]+class="[^"]*api_txt_lines dsc_txt[^"]*"[^>]*>(.*?)</div>',
+            html,
+            flags=re.DOTALL
+        )
+
+        results = []
+        for i, title in enumerate(title_matches):
+            if len(results) >= count:
+                break
+            snippet = snippet_matches[i] if i < len(snippet_matches) else ''
+            snippet = clean_html(snippet)
+            results.append({'title': title.strip(), 'content': snippet.strip()})
+
+        if not results:
+            return [], '검색 결과를 찾을 수 없습니다. 키워드를 바꿔보세요.'
+
+        return results, None
+
+    except requests.Timeout:
+        return [], '네이버 검색 요청 시간이 초과됐습니다.'
+    except requests.RequestException as e:
+        return [], f'네이버 검색 요청 실패: {str(e)}'
+    except Exception as e:
+        return [], f'네이버 검색 처리 중 오류가 발생했습니다: {str(e)}'
+
+
 def search_coupang_products(keyword, limit=2):
     """쿠팡 파트너스 API로 상품 검색. Returns list of product dicts."""
     from urllib.parse import quote as urlquote
@@ -275,8 +333,16 @@ def generate_post():
         # ── 블로그 스타일 참고 ────────────────────────────────────────
         style_posts = []
         style_error = None
+        keyword_references = []
+        keyword_reference_error = None
         if blog_id:
             style_posts, style_error = fetch_naver_blog_posts(blog_id)
+
+        valid_kws = [kw for kw in keywords if kw.get('keyword') and kw.get('count')]
+        query_keywords = [kw['keyword'] for kw in valid_kws] + title_keywords
+        if query_keywords:
+            combined_query = ' '.join(query_keywords[:8])
+            keyword_references, keyword_reference_error = search_naver_blog_posts(combined_query, count=5)
 
         # ── 2단계: 블로그 글 작성 ────────────────────────────────────
         img_labels = ', '.join(f'[이미지 {i+1}]' for i in range(img_count))
@@ -323,7 +389,17 @@ def generate_post():
                 "7. 독자에게 말 걸듯 쓰는지, 혼자 일기 쓰듯 쓰는지\n\n"
                 f"참고 글:\n\n{style_block[:5500]}\n"
             )
-
+        if keyword_references:
+            examples = []
+            for i, post in enumerate(keyword_references[:5], 1):
+                examples.append(f"[키워드 참고글 {i}] 제목: {post['title']}\n{post['content']}")
+            reference_block = "\n\n---\n\n".join(examples)
+            sections.append(
+                "【키워드 기반 네이버 블로그 참고】\n"
+                "입력한 필수 키워드와 제목 키워드를 기준으로 다른 네이버 블로그 글 5개를 참고하여 작성하세요.\n"
+                "특히 키워드 사용 빈도와 검색 의도에 맞는 제목/도입부 표현을 강화하세요.\n\n"
+                f"참고 글:\n\n{reference_block[:5500]}"
+            )
         sections.append(
             "작성 규칙:\n"
             f"- 이미지는 {img_count}장이며, 글 중간 중간 내용과 어울리는 자연스러운 위치에 {img_labels} 형식으로 정확히 삽입할 것\n"
@@ -424,13 +500,17 @@ def generate_post():
             'char_count_total': char_count_total,
             'keyword_check': keyword_check,
             'style_error': style_error,
-            'style_posts_count': len(style_posts)
+            'style_posts_count': len(style_posts),
+            'keyword_reference_error': keyword_reference_error,
+            'keyword_reference_count': len(keyword_references)
         })
 
     except ValueError as e:
+        app.logger.warning(f'Validation error in generate_post: {e}')
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': f'오류가 발생했습니다: {str(e)}'}), 500
+        app.logger.exception('Unexpected error in generate_post')
+        return jsonify({'success': False, 'error': f'서버 오류가 발생했습니다. 관리자에게 문의하세요. ({str(e)})'}), 500
 
 
 if __name__ == '__main__':

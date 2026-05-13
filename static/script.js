@@ -196,7 +196,18 @@ async function generate() {
     formData.append('coupang_count', document.getElementById('coupangCount').value);
 
     const res = await fetch('/api/generate', { method: 'POST', body: formData });
-    const data = await res.json();
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error(`서버 응답을 파싱할 수 없습니다. 상태 ${res.status}: ${res.statusText}\n응답 본문: ${text}`);
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || `서버 오류가 발생했습니다. 상태 ${res.status}`);
+    }
 
     if (data.success) {
       generatedPost = data.post;
@@ -204,8 +215,9 @@ async function generate() {
     } else {
       showState('error', data.error || '알 수 없는 오류가 발생했습니다.');
     }
-  } catch {
-    showState('error', '네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+  } catch (error) {
+    console.error('Generate error:', error);
+    showState('error', error.message || '네트워크 오류가 발생했습니다. 다시 시도해주세요.');
   } finally {
     generateBtn.disabled = false;
   }
@@ -213,8 +225,11 @@ async function generate() {
 
 function renderResult(data) {
   // Style warning
-  if (data.style_error) {
-    styleWarning.textContent = `⚠️ ${data.style_error} (스타일 참고 없이 글을 생성했습니다)`;
+  if (data.style_error || data.keyword_reference_error) {
+    const warnings = [];
+    if (data.style_error) warnings.push(data.style_error + ' (스타일 참고 없이 글을 생성했습니다)');
+    if (data.keyword_reference_error) warnings.push(data.keyword_reference_error + ' (키워드 기반 참고 검색에 실패했습니다)');
+    styleWarning.textContent = `⚠️ ${warnings.join(' | ')}`;
     styleWarning.style.display = 'block';
   } else {
     styleWarning.style.display = 'none';

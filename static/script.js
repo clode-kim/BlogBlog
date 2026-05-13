@@ -60,11 +60,73 @@ fileInput.addEventListener('change', () => {
 });
 
 function addFiles(files) {
-  files.forEach(file => {
+  files.forEach(async file => {
     const isDupe = selectedFiles.some(f => f.name === file.name && f.size === file.size);
-    if (!isDupe) selectedFiles.push(file);
+    if (!isDupe) {
+      try {
+        // 이미지 압축 처리
+        const compressedFile = await compressImage(file);
+        selectedFiles.push(compressedFile);
+      } catch (error) {
+        console.error('이미지 압축 실패:', error);
+        // 압축 실패 시 원본 파일 사용 (크기 검증은 유지)
+        if (file.size > 5 * 1024 * 1024) {
+          alert(`파일 "${file.name}"이 너무 큽니다. 5MB 이하의 파일만 업로드 가능합니다.`);
+          return;
+        }
+        selectedFiles.push(file);
+      }
+    }
   });
   renderImageGrid();
+}
+
+// 이미지 압축 함수
+async function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      // 최대 크기 설정 (1920px)
+      const maxWidth = 1920;
+      const maxHeight = 1920;
+
+      let { width, height } = img;
+
+      // 크기 조정
+      if (width > height) {
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // 이미지 그리기
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // 압축된 이미지로 변환
+      canvas.toBlob((blob) => {
+        const compressedFile = new File([blob], file.name, {
+          type: file.type,
+          lastModified: Date.now()
+        });
+        resolve(compressedFile);
+      }, file.type, 0.8); // 80% 품질
+    };
+
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 function removeFile(index) {
